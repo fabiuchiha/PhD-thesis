@@ -1,20 +1,33 @@
 from collections import defaultdict
-from cdlib import NodeClustering, algorithms
+from cdlib import NodeClustering, algorithms, evaluation
 from infomap import Infomap
+import gravis as gv
 from scipy import io
 import networkx as nx
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import gravis as gv
+from matplotlib.colors import ListedColormap
 import csv, os, pickle, random
+import igraph as ig
+#from msb import Balance
 
 
 path = 'Data'
 matricesPath = 'Raw matrices'
-correlationMatricesPath = 'Correlation matrices'
-correlationImagesPath = 'Correlation images'
-graphsPath = 'Networkx graphs'
+
+pearsonCorrelationMatricesPath = 'Correlation matrices Pearson'
+pearsonCorrelationImagesPath = 'Correlation images Pearson'
+euclideanCorrelationMatricesPath = 'Correlation matrices Euclidean'
+euclideanCorrelationImagesPath = 'Correlation images Euclidean'
+
+pearsonGraphsPath = 'Networkx graphs Pearson'
+euclideanGraphsPath = 'Networkx graphs Euclidean'
+
+pearsonAverageDegreesPath = 'Pearson average degrees'
+pearsonClusteringCoefficientsPath = 'Pearson clustering coefficients'
+pearsonAveragePathLenghtsPath = 'Pearson average path lenghts'
+
 
 def dataToBinary(data, filename):
     with open(filename, 'wb') as object_file:
@@ -26,25 +39,15 @@ def binaryToData(fileName):
         return data
     
 def averageDegree(network):
-    degrees = [val for (node, val) in network.degree()]
+    degrees = []
+    if nx.is_weighted(network):
+        degrees = [val for (node, val) in network.degree(weight='weight')]
+    else:
+        degrees = [val for (node, val) in network.degree()]
     sum = 0
     for d in degrees:
         sum += d
     return sum/len(degrees)
-
-def kin(network):
-    nodes = network.nodes()
-    sum = 0
-    for n in nodes:
-        sum += network.in_degree(n)
-    return sum/len(nodes)
-
-def kout(network):
-    nodes = network.nodes()
-    sum = 0
-    for n in nodes:
-        sum += network.out_degree(n)
-    return sum/len(nodes)
 
 def APL(network):
     if (nx.is_directed(network)):
@@ -53,20 +56,18 @@ def APL(network):
         for C in (network.subgraph(c) for c in nx.weakly_connected_components(network)):
             if largestComponent<len(C.nodes):
                 largestComponent = len(C.nodes)
-                apl = nx.average_shortest_path_length(C)
+                if nx.is_weighted(network):
+                    apl = nx.average_shortest_path_length(C, weight='weight')
+                else:
+                    apl = nx.average_shortest_path_length(C)
                 largestAPL = apl
         return largestAPL
     else:
         for C in (network.subgraph(c) for c in nx.connected_components(network)):
-            return nx.average_shortest_path_length(C)
-
-def networkInfo(network):
-    print("Average degree:", averageDegree(network))
-    if (nx.is_directed(network)):
-        print("Internal average degree:", kin(network))
-        print("External average degree:", kout(network))
-    print("Clustering coefficient:", nx.average_clustering(network))
-    print("Average Path Length (highest value):", APL(network))
+            if nx.is_weighted(network):
+                return nx.average_shortest_path_length(C, weight='weight')
+            else:
+                return nx.average_shortest_path_length(C)
 
 def infomapClustering(net, flags):
     # Add infomap flags
